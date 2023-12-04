@@ -1,55 +1,44 @@
 class Track:
     def __init__(self, length, slope_info, curve_info, speed_limit_zones, max_acceleration, min_acceleration):
         self.length = length
-        self.slope_info = slope_info  # 轨道坡道信息  
-        self.curve_info = curve_info  # 轨道弯道信息  
-        self.speed_limit_zones = speed_limit_zones  # 限速区信息  
+        self.slope_info = SlopeInfo(slope_info)  # 轨道坡道信息
+        self.curve_info = CurveInfo(curve_info)  # 轨道弯道信息
+        self.speed_limit_zones = SpeedLimitZone(speed_limit_zones)  # 限速区信息
         self.max_acceleration = max_acceleration  # 列车最大加速度（牵引性能）  
         self.min_acceleration = min_acceleration  # 列车最小加速度（制动性能）  
 
-    def get_acceleration(self, position):
+    def get_acceleration(self, position, velocity):
         # 根据轨道坡道信息、弯道信息和限速区信息计算理论加速度  
-        theoretical_acceleration = self._calculate_theoretical_acceleration(position)
+        theoretical_acceleration = self._calculate_theoretical_acceleration(position, velocity)
 
         # 根据限速区信息调整加速度以满足限速要求  
-        actual_acceleration = self._adjust_acceleration(theoretical_acceleration, position)
+        actual_acceleration = self._adjust_acceleration(theoretical_acceleration, position, velocity)
 
         return actual_acceleration
 
-    def _calculate_theoretical_acceleration(self, position):
+    def _calculate_theoretical_acceleration(self, position, velocity):
         # 获取轨道坡道信息对应位置的加速度
         slope_acceleration = self.slope_info.get_acceleration(position)
 
         # 获取轨道弯道信息对应位置的加速度
-        curve_acceleration = self.curve_info.get_acceleration(position)
+        # curve_acceleration = self.curve_info.get_acceleration(position, velocity)
+        # 暂时不考虑
+        curve_acceleration = 0
 
-        # 计算理论加速度（牵引制动力）
+        # 计算理论加速度（道路情况）
         theoretical_acceleration = slope_acceleration + curve_acceleration
-
-        # 限制最大最小加速度
-        theoretical_acceleration = max(min(theoretical_acceleration, self.max_acceleration), self.min_acceleration)
 
         return theoretical_acceleration
 
-    def _adjust_acceleration(self, theoretical_acceleration, position):
-        # 检查当前位置是否处于限速区内
-        speed_limit_zone = self.speed_limit_zones.get_speed_limit_zone(position)
-        if speed_limit_zone:
-            # 获取限速区的限速值和位置信息
-            speed_limit = speed_limit_zone.speed_limit
-            zone_start = speed_limit_zone.start_position
-            zone_end = speed_limit_zone.end_position
+    def _adjust_acceleration(self, theoretical_acceleration, position, velocity):
+        # 获取当前位置的限速
+        speed_limit = self.speed_limit_zones.get_speed_limit(position)
 
-            # 计算距离限速区起始位置的距离
-            distance_to_zone_start = position - zone_start
-
-            # 根据距离和限速值计算限速加速度
-            speed_limit_acceleration = (speed_limit - self.train.velocity) / distance_to_zone_start
-
-            # 调整实际加速度以满足限速要求
-            actual_acceleration = min(theoretical_acceleration, speed_limit_acceleration)
+        # 如果当前速度已经超过限速，将加速度调整为制动加速度，否则进行加速
+        if speed_limit <= velocity:
+            actual_acceleration = self.min_acceleration + theoretical_acceleration
         else:
-            actual_acceleration = theoretical_acceleration
+            actual_acceleration = self.max_acceleration + theoretical_acceleration
 
         return actual_acceleration
 
@@ -70,7 +59,7 @@ class SlopeInfo:
     def get_acceleration(self, position):
         # 获取斜率并计算对应的加速度
         slope = self.get_slope(position)
-        acceleration = slope * 9.8  # 假设斜率以角度表示，转换为加速度
+        acceleration = -slope * 9.8  # 假设斜率以角度表示，转换为加速度，上坡加速，下坡减速
         return acceleration
 
 
